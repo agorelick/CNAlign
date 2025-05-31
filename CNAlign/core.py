@@ -20,7 +20,7 @@ import time
 import numpy as np
 
 ## dat should be a data.frame object from R with columns: "sample", "segment", "logR", "BAF", "GC", "mb"
-def do_CNAlign(dat, gurobi_license, min_ploidy, max_ploidy, min_purity, max_purity, 
+def CNAlign(dat, gurobi_license, min_ploidy, max_ploidy, min_purity, max_purity, 
                min_aligned_seg_mb, max_homdel_mb, 
                delta_tcn_to_int, delta_tcn_to_avg, delta_tcnavg_to_int, 
                delta_mcn_to_int, delta_mcn_to_avg, delta_mcnavg_to_int, 
