@@ -1,1 +1,1 @@
-from .core import do_CNAlign
+from .core import CNAlign

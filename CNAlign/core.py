@@ -18,13 +18,14 @@ import gurobipy as gb
 from gurobipy import GRB
 import time
 import numpy as np
+import argparse
 
 ## dat should be a data.frame object from R with columns: "sample", "segment", "logR", "BAF", "GC", "mb"
 def CNAlign(dat, gurobi_license, min_ploidy, max_ploidy, min_purity, max_purity, 
                min_aligned_seg_mb, max_homdel_mb, 
                delta_tcn_to_int, delta_tcn_to_avg, delta_tcnavg_to_int, 
                delta_mcn_to_int, delta_mcn_to_avg, delta_mcnavg_to_int, 
-               mcn_weight, rho, timeout, min_cna_segments_per_sample, obj2_clonalonly):
+               mcn_weight, rho, timeout, min_cna_segments_per_sample, obj2_clonalonly, sol_count):
 
     # Create an environment with your WLS license
     with open(gurobi_license) as file:
@@ -77,9 +78,15 @@ def CNAlign(dat, gurobi_license, min_ploidy, max_ploidy, min_purity, max_purity,
     Segments = dat['segment'].unique()
     n_Samples = len(Samples)
     n_Segments = len(Segments)
-    dat.set_index(['sample','segment'], inplace=True) ## set indices: sample, segment
 
-    ## print out message with input parameters 
+    # set indices: sample, segment
+    dat = dat.reset_index()
+    dat.set_index(['sample','segment'], inplace=True)
+    
+    # recode NaN BAFs to -9
+    dat.loc[np.isnan(dat['BAF']),'BAF'] = -9
+
+    # print out message with input parameters 
     print('\n-------------------------------------')
     print('Running CNAlign with parameters:')
     print('- Gurobi license: '+gurobi_license)  
@@ -90,16 +97,18 @@ def CNAlign(dat, gurobi_license, min_ploidy, max_ploidy, min_purity, max_purity,
     print('- rho (min fraction of samples with matching segment): '+str(rho))  
     print('- mcn_weight (contribution of MCN to obj2, s.t. tcn_weight+mcn_weight=1): '+str(mcn_weight))  
     print('- timeout (seconds without improvement for optimization to stop): '+str(timeout))
-    print('- obj2_clonalonly (obj2 only among segments with clonal CNAs; 0=false/1=true): '+str(obj2_clonalonly))  
-    print('- TCN Deltas [sample to int; sample to avg; avg to int]: ['+str(delta_tcn_to_int)+'; '+str(delta_tcn_to_avg)+'; '+str(delta_tcnavg_to_int+']'))  
-    print('- MCN Deltas [sample to int; sample to avg; avg to int]: ['+str(delta_mcn_to_int)+'; '+str(delta_mcn_to_avg)+'; '+str(delta_mcnavg_to_int+']'))  
+    print('- sol_count (top N solutions to report): '+str(sol_count))
+    print('- obj2_clonalonly (obj2 only among segments with clonal CNAs): '+str(obj2_clonalonly))  
+    print('- TCN Deltas [sample to int; sample to avg; avg to int]: ['+str(delta_tcn_to_int)+'; '+str(delta_tcn_to_avg)+'; '+str(delta_tcnavg_to_int)+']')  
+    print('- MCN Deltas [sample to int; sample to avg; avg to int]: ['+str(delta_mcn_to_int)+'; '+str(delta_mcn_to_avg)+'; '+str(delta_mcnavg_to_int)+']')  
     print('- # samples in data: '+str(n_Samples))
     print('- # segments in data: '+str(n_Segments))
     print('-------------------------------------')
 
     env = gb.Env(params=params) 
     model = gb.Model(env=env)
-            
+    model.setParam(GRB.Param.PoolSolutions, sol_count)
+
     n1 = model.addVars(Samples, Segments, vtype=GRB.CONTINUOUS, name='n1') 
     tcn = model.addVars(Samples, Segments, vtype=GRB.CONTINUOUS, name='tcn')    
     tcn_avg = model.addVars(Samples, Segments, vtype=GRB.CONTINUOUS, name='tcn_avg')
@@ -163,8 +172,6 @@ def CNAlign(dat, gurobi_license, min_ploidy, max_ploidy, min_purity, max_purity,
 
     # objective variables
     n_clonal = model.addVar(vtype=GRB.INTEGER, lb=0, ub=n_Segments, name='n_clonal')
-
-
 
 
     ## segment,sample-level contraints
@@ -298,7 +305,7 @@ def CNAlign(dat, gurobi_license, min_ploidy, max_ploidy, min_purity, max_purity,
     # objective 1: number of segments with clonal SCNAs (the same CNA in 1+ allele, present in rho+ % of samples)
     model.addConstr(n_clonal == gb.quicksum(allmatch[s] for s in Segments))
     
-    if(obj2_clonalonly==0):
+    if(obj2_clonalonly==False):
         # objective 2a, 2b: minimize the combined error among all segments
         model.addConstr(tcn_error_clonal == gb.quicksum(tcn_int_err[t, s] for t in Samples for s in Segments))
         model.addConstr(mcn_error_clonal == gb.quicksum(mcn_int_err[t, s] for t in Samples for s in Segments))    
@@ -329,8 +336,11 @@ def CNAlign(dat, gurobi_license, min_ploidy, max_ploidy, min_purity, max_purity,
     model.update()    
     model.optimize(callback)
     
-    return model
+    # Store objective expressions as model attributes for later evaluation
+    model._obj1_expr = n_clonal
+    model._obj2_expr = -(1 - mcn_weight) * tcn_error_clonal - mcn_weight * mcn_error_clonal
 
+    return model
 
 
 
