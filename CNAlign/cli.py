@@ -2,7 +2,7 @@
 
 import argparse
 import pandas as pd
-from CNAlign import CNAlign
+from CNAlign import CNAlign ExtractSolution
 
 def main():
     parser = argparse.ArgumentParser(
@@ -67,82 +67,11 @@ def main():
             sol_count=args.sol_count
             )
 
-    n_objectives = 2
-    solution_count = model.SolCount
-    
-    # extract objective values for each solution
-    obj1_vals = []
-    obj2_vals = []
-    for i in range(model.SolCount):
-        model.params.SolutionNumber = i
-        obj1_vals.append(model._obj1_expr.Xn)
-        obj2_vals.append(
-            -(1 - args.mcn_weight) * model.getVarByName('tcn_error_clonal').Xn
-            - args.mcn_weight * model.getVarByName('mcn_error_clonal').Xn
-        )
-
-    df = pd.DataFrame({
-        'Obj1': obj1_vals,
-        'Obj2': obj2_vals
-        }, index=[f"Solution_{i+1}" for i in range(model.SolCount)])
-    obj_df = df.T.reset_index()
-    obj_df.columns = ['Variable'] + [f"Solution_{i+1}" for i in range(model.SolCount)]
-
-    # extract ploidy for each solution
-    pl_vars = [v for v in model.getVars() if v.VarName.startswith("pl[")]
-    pl_var_names = [v.VarName for v in pl_vars]
-    pl_data = { "Variable": pl_var_names }
-    for i in range(solution_count):
-        model.params.SolutionNumber = i
-        pl_data[f"Solution_{i+1}"] = [v.Xn for v in pl_vars]
-    
-    pl_df = pd.DataFrame(pl_data) 
-
-    # extract purity for each solution
-    pu_vars = [v for v in model.getVars() if v.VarName.startswith("z[")]
-    pu_var_names = [v.VarName for v in pu_vars]
-    pu_data = { "Variable": pu_var_names }
-    for i in range(solution_count):
-        model.params.SolutionNumber = i
-        pu_data[f"Solution_{i+1}"] = [1/v.Xn for v in pu_vars]
-    
-    pu_df = pd.DataFrame(pu_data)
-    pu_df.Variable = pu_df.Variable.replace('z\\[','pu[',regex=True) 
-
-    # extract allmatch for each solution
-    allmatch_vars = [v for v in model.getVars() if v.VarName.startswith("allmatch[")]
-    allmatch_var_names = [v.VarName for v in allmatch_vars]
-    allmatch_data = { "Variable": allmatch_var_names }
-    for i in range(solution_count):
-        model.params.SolutionNumber = i
-        allmatch_data[f"Solution_{i+1}"] = [v.Xn for v in allmatch_vars]
-    
-    allmatch_df = pd.DataFrame(allmatch_data)
-
-    # extract tcn for each solution
-    tcn_vars = [v for v in model.getVars() if v.VarName.startswith("tcn[")]
-    tcn_var_names = [v.VarName for v in tcn_vars]
-    tcn_data = { "Variable": tcn_var_names }
-    for i in range(solution_count):
-        model.params.SolutionNumber = i
-        tcn_data[f"Solution_{i+1}"] = [v.Xn for v in tcn_vars]
-    
-    tcn_df = pd.DataFrame(tcn_data)
-
-    # extract mcn for each solution
-    mcn_vars = [v for v in model.getVars() if v.VarName.startswith("mcn[")]
-    mcn_var_names = [v.VarName for v in mcn_vars]
-    mcn_data = { "Variable": mcn_var_names }
-    for i in range(solution_count):
-        model.params.SolutionNumber = i
-        mcn_data[f"Solution_{i+1}"] = [v.Xn for v in mcn_vars]
-    
-    mcn_df = pd.DataFrame(mcn_data)
+    # extract solutions into data.frame
+    out = ExtractSolutions(model, args.mcn_weight)
 
     # merge the output data and write out
     print('Writing output to file: '+args.output)
-    out = pd.concat([obj_df, pl_df, pu_df, allmatch_df, tcn_df, mcn_df], axis=0, ignore_index=True)
-    out.iloc[:, 1:] = out.iloc[:, 1:].round(6)
     out.to_csv(args.output, sep='\t', index=False)
     print('Done. Have a nice day!')
 

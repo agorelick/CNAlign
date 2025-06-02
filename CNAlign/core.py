@@ -20,7 +20,99 @@ import time
 import numpy as np
 import argparse
 
-## dat should be a data.frame object from R with columns: "sample", "segment", "logR", "BAF", "GC", "mb"
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# helper function to extract all solutions from a CNAlign model 
+# into a pandas data.frame
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+def ExtractSolutions(model, mcn_weight):
+
+    n_objectives = 2
+    solution_count = model.SolCount
+    
+    # extract objective values for each solution
+    obj1_vals = []
+    obj2_vals = []
+    for i in range(model.SolCount):
+        model.params.SolutionNumber = i
+        obj1_vals.append(model._obj1_expr.Xn)
+        obj2_vals.append(
+            -(1 - args.mcn_weight) * model.getVarByName('tcn_error_clonal').Xn
+            - args.mcn_weight * model.getVarByName('mcn_error_clonal').Xn
+        )
+
+    df = pd.DataFrame({
+        'Obj1': obj1_vals,
+        'Obj2': obj2_vals
+        }, index=[f"Solution_{i+1}" for i in range(model.SolCount)])
+    obj_df = df.T.reset_index()
+    obj_df.columns = ['Variable'] + [f"Solution_{i+1}" for i in range(model.SolCount)]
+
+    # extract ploidy for each solution
+    pl_vars = [v for v in model.getVars() if v.VarName.startswith("pl[")]
+    pl_var_names = [v.VarName for v in pl_vars]
+    pl_data = { "Variable": pl_var_names }
+    for i in range(solution_count):
+        model.params.SolutionNumber = i
+        pl_data[f"Solution_{i+1}"] = [v.Xn for v in pl_vars]
+    
+    pl_df = pd.DataFrame(pl_data) 
+
+    # extract purity for each solution
+    pu_vars = [v for v in model.getVars() if v.VarName.startswith("z[")]
+    pu_var_names = [v.VarName for v in pu_vars]
+    pu_data = { "Variable": pu_var_names }
+    for i in range(solution_count):
+        model.params.SolutionNumber = i
+        pu_data[f"Solution_{i+1}"] = [1/v.Xn for v in pu_vars]
+    
+    pu_df = pd.DataFrame(pu_data)
+    pu_df.Variable = pu_df.Variable.replace('z\\[','pu[',regex=True) 
+
+    # extract allmatch for each solution
+    allmatch_vars = [v for v in model.getVars() if v.VarName.startswith("allmatch[")]
+    allmatch_var_names = [v.VarName for v in allmatch_vars]
+    allmatch_data = { "Variable": allmatch_var_names }
+    for i in range(solution_count):
+        model.params.SolutionNumber = i
+        allmatch_data[f"Solution_{i+1}"] = [v.Xn for v in allmatch_vars]
+    
+    allmatch_df = pd.DataFrame(allmatch_data)
+
+    # extract tcn for each solution
+    tcn_vars = [v for v in model.getVars() if v.VarName.startswith("tcn[")]
+    tcn_var_names = [v.VarName for v in tcn_vars]
+    tcn_data = { "Variable": tcn_var_names }
+    for i in range(solution_count):
+        model.params.SolutionNumber = i
+        tcn_data[f"Solution_{i+1}"] = [v.Xn for v in tcn_vars]
+    
+    tcn_df = pd.DataFrame(tcn_data)
+
+    # extract mcn for each solution
+    mcn_vars = [v for v in model.getVars() if v.VarName.startswith("mcn[")]
+    mcn_var_names = [v.VarName for v in mcn_vars]
+    mcn_data = { "Variable": mcn_var_names }
+    for i in range(solution_count):
+        model.params.SolutionNumber = i
+        mcn_data[f"Solution_{i+1}"] = [v.Xn for v in mcn_vars]
+    
+    mcn_df = pd.DataFrame(mcn_data)
+
+    # merge everything into a data.frame
+    out = pd.concat([obj_df, pl_df, pu_df, allmatch_df, tcn_df, mcn_df], axis=0, ignore_index=True)
+    out.iloc[:, 1:] = out.iloc[:, 1:].round(6)
+    return out
+
+
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Main CNAlign algorithm using gurobipy
+# input dat should be a pandas data.frame with columns: 
+# "sample", "segment", "logR", "BAF", "GC", "mb"
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
 def CNAlign(dat, gurobi_license, min_ploidy, max_ploidy, min_purity, max_purity, 
                min_aligned_seg_mb, max_homdel_mb, 
                delta_tcn_to_int, delta_tcn_to_avg, delta_tcnavg_to_int, 
@@ -340,7 +432,16 @@ def CNAlign(dat, gurobi_license, min_ploidy, max_ploidy, min_purity, max_purity,
     model._obj1_expr = n_clonal
     model._obj2_expr = -(1 - mcn_weight) * tcn_error_clonal - mcn_weight * mcn_error_clonal
 
-    return model
+    # extract solutions into a data.frame and return it
+    solutions_df = ExtractSolutions(model, mcn_weight)
+    return solutions_df
+
+
+
+
+
+
+
 
 
 
