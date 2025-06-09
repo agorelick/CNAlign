@@ -2,7 +2,7 @@
 
 import argparse
 import pandas as pd
-from CNAlign import CNAlign ExtractSolution
+from CNAlign import CNAlign
 
 def main():
     parser = argparse.ArgumentParser(
@@ -44,7 +44,7 @@ def main():
     dat = pd.read_csv(args.input, sep='\t')
 
     # run CNAlign
-    model = CNAlign(
+    out = CNAlign(
             dat=dat,
             gurobi_license=args.gurobi_license,
             min_ploidy=args.min_ploidy,
@@ -66,9 +66,6 @@ def main():
             obj2_clonalonly=args.obj2_clonalonly,
             sol_count=args.sol_count
             )
-
-    # extract solutions into data.frame
-    out = ExtractSolutions(model, args.mcn_weight)
 
     # merge the output data and write out
     print('Writing output to file: '+args.output)
