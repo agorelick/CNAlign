@@ -33,6 +33,7 @@ def main():
     parser.add_argument('--min_cna_segments_per_sample', type=int, default=5, help='Minimum number of segments with CNAs per sample for solution to be valid (prevents trivial solutions) [5]')
     parser.add_argument('--obj2_clonalonly', type=bool, default=False, help='Optimize obj2 only among segments with clonal CNAs [False]')
     parser.add_argument('--sol_count', type=int, default=10, help='Top N solutions to return [10]')
+    parser.add_argument('--max_tcn_avg_int', type=int, default=100, help='Max segment rounded average TCN value [100]')
     args = parser.parse_args()
 
     # print out message with input parameters 

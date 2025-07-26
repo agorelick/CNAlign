@@ -30,7 +30,7 @@ def CNAlign(dat, gurobi_license, min_ploidy, max_ploidy, min_purity, max_purity,
                min_aligned_seg_mb, max_homdel_mb, 
                delta_tcn_to_int, delta_tcn_to_avg, delta_tcnavg_to_int, 
                delta_mcn_to_int, delta_mcn_to_avg, delta_mcnavg_to_int, 
-               mcn_weight, rho, timeout, min_cna_segments_per_sample, obj2_clonalonly, sol_count):
+               mcn_weight, rho, timeout, min_cna_segments_per_sample, obj2_clonalonly, sol_count, max_tcn_avg_int):
 
     # Create an environment with your WLS license
     with open(gurobi_license) as file:
@@ -81,8 +81,10 @@ def CNAlign(dat, gurobi_license, min_ploidy, max_ploidy, min_purity, max_purity,
     # Read input data into pandas DataFrame
     Samples = dat['sample'].unique()
     Segments = dat['segment'].unique()
+    TCNvals = range(8) # 0-8 are set of possible TCN integer values from which we need at least two to be in the solution
     n_Samples = len(Samples)
     n_Segments = len(Segments)
+    n_TCNvals = len(TCNvals)
 
     # set indices: sample, segment
     dat = dat.reset_index()
@@ -103,6 +105,7 @@ def CNAlign(dat, gurobi_license, min_ploidy, max_ploidy, min_purity, max_purity,
     print('- mcn_weight (contribution of MCN to obj2, s.t. tcn_weight+mcn_weight=1): '+str(mcn_weight))  
     print('- timeout (seconds without improvement for optimization to stop): '+str(timeout))
     print('- sol_count (top N solutions to report): '+str(sol_count))
+    print('- max_tcn_avg_int (maximum segment rounded average TCN value): '+str(max_tcn_avg_int))
     print('- obj2_clonalonly (obj2 only among segments with clonal CNAs): '+str(obj2_clonalonly))  
     print('- TCN Deltas [sample to int; sample to avg; avg to int]: ['+str(delta_tcn_to_int)+'; '+str(delta_tcn_to_avg)+'; '+str(delta_tcnavg_to_int)+']')  
     print('- MCN Deltas [sample to int; sample to avg; avg to int]: ['+str(delta_mcn_to_int)+'; '+str(delta_mcn_to_avg)+'; '+str(delta_mcnavg_to_int)+']')  
@@ -120,7 +123,7 @@ def CNAlign(dat, gurobi_license, min_ploidy, max_ploidy, min_purity, max_purity,
     tcn_int = model.addVars(Samples, Segments, vtype=GRB.INTEGER, name='tcn_int')
     tcn_int_err = model.addVars(Samples, Segments, vtype=GRB.CONTINUOUS, name='tcn_int_err', lb=0)
     tcn_spread = model.addVars(Samples, Segments, vtype=GRB.CONTINUOUS, name='tcn_spread', lb=0)
-    tcn_avg_int = model.addVars(Samples, Segments, vtype=GRB.INTEGER, name='tcn_avg_int', lb=0)
+    tcn_avg_int = model.addVars(Samples, Segments, vtype=GRB.INTEGER, name='tcn_avg_int', lb=0, ub=max_tcn_avg_int)
     tcn_avg_int_err = model.addVars(Samples, Segments, vtype=GRB.CONTINUOUS, name='tcn_avg_int_err', lb=0)
 
     tcn_close_to_int = model.addVars(Samples, Segments, vtype=GRB.BINARY, name='tcn_close_to_int')
@@ -150,8 +153,7 @@ def CNAlign(dat, gurobi_license, min_ploidy, max_ploidy, min_purity, max_purity,
     mcn_loss = model.addVars(Samples, Segments, vtype=GRB.BINARY, name='mcn_loss')
     mcn_cna = model.addVars(Samples, Segments, vtype=GRB.BINARY, name='mcn_cna')
     mcn_error_clonal = model.addVar(vtype=GRB.CONTINUOUS, lb=0, name='mcn_error_clonal')
-    
-    
+
     # additional Sample+Segment-level variables
     match_both = model.addVars(Samples, Segments, vtype=GRB.BINARY, name='match_both')
     match_both_and_large_enough = model.addVars(Samples, Segments, vtype=GRB.BINARY, name='match_both_and_large_enough')        
@@ -178,9 +180,14 @@ def CNAlign(dat, gurobi_license, min_ploidy, max_ploidy, min_purity, max_purity,
     # objective variables
     n_clonal = model.addVar(vtype=GRB.INTEGER, lb=0, ub=n_Segments, name='n_clonal')
 
+    # counter for number of times each TCNval is the value for a segment in the solution
+    times_tcn_vals_in_solution = model.addVars(TCNvals, vtype=GRB.INTEGER, name='times_tcn_vals_in_solution', lb=0)
+    n_unique_tcn_vals_in_solution = model.addVar(vtype=GRB.INTEGER, name='n_unique_tcn_vals_in_solution', lb=2)
+
 
     ## segment,sample-level contraints
     for s in Segments:
+
         for t in Samples:
             ## calculate values
             r = dat.loc[t,s].logR
@@ -297,10 +304,42 @@ def CNAlign(dat, gurobi_license, min_ploidy, max_ploidy, min_purity, max_purity,
     for s in Segments:    
         model.addGenConstrIndicator(allmatch[s], 1, gb.quicksum(match_both_and_large_enough_and_cna[(t, s)] for t in Samples), GRB.GREATER_EQUAL, rho*n_Samples)
 
+
     # get total homdel Mb and number of segments with CNAs for each sample
     for t in Samples:
         model.addConstr(homdel_mb[t] == gb.quicksum(dat.loc[(t,s)].mb * is_homdel[(t, s)] for s in Segments))
         model.addConstr(n_cna_segments_per_sample[t] == gb.quicksum(is_cna[(t,s)] for s in Segments))
+
+
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    # force at least two distinct TCN integer values in the solution
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+    # create a field for each segment that equals either its avg int-TCN value (if it is part of the solution) or -999 if it is not in the solution
+    tcn_avg_int_given_solution = model.addVars(Segments, vtype=GRB.INTEGER, name='tcn_avg_int_given_solution')
+
+    # we need to linearize tcn_avg_int[s] * allmatch[s] using big-M
+    aux = model.addVars(Segments, vtype=GRB.CONTINUOUS, lb=0, ub=max_tcn_avg_int, name="aux")
+    M = max_tcn_avg_int
+    for s in Segments:    
+        # Linearization constraints
+        model.addConstr(aux[s] <= tcn_avg_int[s])
+        model.addConstr(aux[s] <= M * allmatch[s])
+        model.addConstr(aux[s] >= tcn_avg_int[s] - M * (1 - allmatch[s]))
+        model.addConstr(aux[s] >= 0)
+
+    for s in Segments:    
+        model.addConstr(tcn_avg_int_given_solution[s] == (aux[s]) + -999*(1-allmatch[s]))
+
+    # for each possible TCN integer value, check how often it is in the solution
+    times_tcn_vals_in_solution = model.addVars(TCNvals, vtype=GRB.INTEGER, name='times_tcn_vals_in_solution', lb=0)
+    for v in TCNvals:
+        model.addConstr(times_tcn_vals_in_solution[v] == gb.quicksum(tcn_avg_int_given_solution[s] == v for s in Segments))
+
+    # add constraint that at least two different TCN values need to be in the solution
+    unique_tcn_vals_in_solution = model.addVar(vtype=GRB.INTEGER, name='unique_tcn_vals_in_solution', lb=2)
+    model.addConstr(unique_tcn_vals_in_solution == gb.quicksum(times_tcn_vals_in_solution[v] >= 1 for s in Segments))
+
 
 
     # =============================================================================
