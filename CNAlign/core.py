@@ -119,40 +119,39 @@ def CNAlign(dat, gurobi_license, min_ploidy, max_ploidy, min_purity, max_purity,
 
     n1 = model.addVars(Samples, Segments, vtype=GRB.CONTINUOUS, name='n1') 
     tcn = model.addVars(Samples, Segments, vtype=GRB.CONTINUOUS, name='tcn')    
-    tcn_avg = model.addVars(Samples, Segments, vtype=GRB.CONTINUOUS, name='tcn_avg')
+
     tcn_int = model.addVars(Samples, Segments, vtype=GRB.INTEGER, name='tcn_int')
     tcn_int_err = model.addVars(Samples, Segments, vtype=GRB.CONTINUOUS, name='tcn_int_err', lb=0)
     tcn_spread = model.addVars(Samples, Segments, vtype=GRB.CONTINUOUS, name='tcn_spread', lb=0)
-    tcn_avg_int = model.addVars(Samples, Segments, vtype=GRB.INTEGER, name='tcn_avg_int', lb=0, ub=max_tcn_avg_int)
-    tcn_avg_int_err = model.addVars(Samples, Segments, vtype=GRB.CONTINUOUS, name='tcn_avg_int_err', lb=0)
-
     tcn_close_to_int = model.addVars(Samples, Segments, vtype=GRB.BINARY, name='tcn_close_to_int')
     tcn_close_to_avg = model.addVars(Samples, Segments, vtype=GRB.BINARY, name='tcn_close_to_avg')
-    tcn_avg_close_to_int = model.addVars(Samples, Segments, vtype=GRB.BINARY, name='tcn_avg_close_to_int')
     tcn_match = model.addVars(Samples, Segments, vtype=GRB.BINARY, name='tcn_match')
     tcn_match_and_avg_at_int = model.addVars(Samples, Segments, vtype=GRB.BINARY, name='tcn_match_and_avg_at_int')
     tcn_gain = model.addVars(Samples, Segments, vtype=GRB.BINARY, name='tcn_gain')
     tcn_loss = model.addVars(Samples, Segments, vtype=GRB.BINARY, name='tcn_loss')
     tcn_cna = model.addVars(Samples, Segments, vtype=GRB.BINARY, name='tcn_cna')
     tcn_error_clonal = model.addVar(vtype=GRB.CONTINUOUS, lb=0, name='tcn_error_clonal')
+    tcn_avg = model.addVars(Segments, vtype=GRB.CONTINUOUS, name='tcn_avg')
+    tcn_avg_int = model.addVars(Segments, vtype=GRB.INTEGER, name='tcn_avg_int', lb=0, ub=max_tcn_avg_int)
+    tcn_avg_int_err = model.addVars(Segments, vtype=GRB.CONTINUOUS, name='tcn_avg_int_err', lb=0)
+    tcn_avg_close_to_int = model.addVars(Segments, vtype=GRB.BINARY, name='tcn_avg_close_to_int')
 
     mcn = model.addVars(Samples, Segments, vtype=GRB.CONTINUOUS, name='mcn')    
-    mcn_avg = model.addVars(Samples, Segments, vtype=GRB.CONTINUOUS, name='mcn_avg')
     mcn_int = model.addVars(Samples, Segments, vtype=GRB.INTEGER, name='mcn_int')
     mcn_int_err = model.addVars(Samples, Segments, vtype=GRB.CONTINUOUS, name='mcn_int_err', lb=0)
     mcn_spread = model.addVars(Samples, Segments, vtype=GRB.CONTINUOUS, name='mcn_spread', lb=0)
-    mcn_avg_int = model.addVars(Samples, Segments, vtype=GRB.INTEGER, name='mcn_avg_int', lb=0)
-    mcn_avg_int_err = model.addVars(Samples, Segments, vtype=GRB.CONTINUOUS, name='mcn_avg_int_err', lb=0)
-
     mcn_close_to_int = model.addVars(Samples, Segments, vtype=GRB.BINARY, name='mcn_close_to_int')
     mcn_close_to_avg = model.addVars(Samples, Segments, vtype=GRB.BINARY, name='mcn_close_to_avg')
-    mcn_avg_close_to_int = model.addVars(Samples, Segments, vtype=GRB.BINARY, name='mcn_avg_close_to_int')
     mcn_match = model.addVars(Samples, Segments, vtype=GRB.BINARY, name='mcn_match')    
     mcn_match_and_avg_at_int = model.addVars(Samples, Segments, vtype=GRB.BINARY, name='mcn_match_and_avg_at_int')
     mcn_gain = model.addVars(Samples, Segments, vtype=GRB.BINARY, name='mcn_gain')
     mcn_loss = model.addVars(Samples, Segments, vtype=GRB.BINARY, name='mcn_loss')
     mcn_cna = model.addVars(Samples, Segments, vtype=GRB.BINARY, name='mcn_cna')
     mcn_error_clonal = model.addVar(vtype=GRB.CONTINUOUS, lb=0, name='mcn_error_clonal')
+    mcn_avg = model.addVars(Segments, vtype=GRB.CONTINUOUS, name='mcn_avg')
+    mcn_avg_int = model.addVars(Segments, vtype=GRB.INTEGER, name='mcn_avg_int')
+    mcn_avg_int_err = model.addVars(Segments, vtype=GRB.CONTINUOUS, name='mcn_avg_int_err', lb=0)
+    mcn_avg_close_to_int = model.addVars(Segments, vtype=GRB.BINARY, name='mcn_avg_close_to_int')
 
     # additional Sample+Segment-level variables
     match_both = model.addVars(Samples, Segments, vtype=GRB.BINARY, name='match_both')
@@ -164,7 +163,7 @@ def CNAlign(dat, gurobi_license, min_ploidy, max_ploidy, min_purity, max_purity,
     
     # additional Segment-level variables
     allmatch = model.addVars(Segments, vtype=GRB.BINARY, name='allmatch')
-    
+
     # additional Sample-level variables
     pl = model.addVars(Samples, vtype=GRB.CONTINUOUS, name='pl', lb=min_ploidy, ub=max_ploidy)
     z = model.addVars(Samples, vtype=GRB.CONTINUOUS, name='z', lb=1/max_purity, ub=1/min_purity)
@@ -184,9 +183,24 @@ def CNAlign(dat, gurobi_license, min_ploidy, max_ploidy, min_purity, max_purity,
     times_tcn_vals_in_solution = model.addVars(TCNvals, vtype=GRB.INTEGER, name='times_tcn_vals_in_solution', lb=0)
     n_unique_tcn_vals_in_solution = model.addVar(vtype=GRB.INTEGER, name='n_unique_tcn_vals_in_solution', lb=2)
 
-
     ## segment,sample-level contraints
     for s in Segments:
+
+        # is TCNavg close to its nearest integer
+        model.addConstr(tcn_avg[s] == gb.quicksum(tcn[t,s] for t in Samples)/n_Samples)
+        model.addConstr(tcn_avg_int[s] <= tcn_avg[s] + 0.5) 
+        model.addConstr(tcn_avg_int[s] >= tcn_avg[s] - 0.5) 
+        model.addConstr(tcn_avg_int_err[s] >= tcn_avg[s] - tcn_avg_int[s])
+        model.addConstr(tcn_avg_int_err[s] >= -tcn_avg[s] + tcn_avg_int[s])                
+        model.addGenConstrIndicator(tcn_avg_close_to_int[s], 1, tcn_avg_int_err[s], GRB.LESS_EQUAL, delta_tcnavg_to_int)
+ 
+        # is MCNavg close to its nearest integer
+        model.addConstr(mcn_avg[s] == gb.quicksum(mcn[t,s] for t in Samples)/n_Samples)
+        model.addConstr(mcn_avg_int[s] <= mcn_avg[s] + 0.5) 
+        model.addConstr(mcn_avg_int[s] >= mcn_avg[s] - 0.5) 
+        model.addConstr(mcn_avg_int_err[s] >= mcn_avg[s] - mcn_avg_int[s])
+        model.addConstr(mcn_avg_int_err[s] >= -mcn_avg[s] + mcn_avg_int[s])                
+        model.addGenConstrIndicator(mcn_avg_close_to_int[s], 1, mcn_avg_int_err[s], GRB.LESS_EQUAL, delta_mcnavg_to_int)
 
         for t in Samples:
             ## calculate values
@@ -227,21 +241,13 @@ def CNAlign(dat, gurobi_license, min_ploidy, max_ploidy, min_purity, max_purity,
             model.addGenConstrIndicator(tcn_close_to_int[t,s], 1, tcn_int_err[t,s], GRB.LESS_EQUAL, delta_tcn_to_int)
             
             # is TCN close to the TCNavg (not too spread out)
-            model.addConstr(tcn_avg[t,s] == gb.quicksum(tcn[t,s] for t in Samples)/n_Samples)
-            model.addConstr(tcn_spread[t,s] >= tcn_avg[t,s] - tcn[t,s])
-            model.addConstr(tcn_spread[t,s] >= -tcn_avg[t,s] + tcn[t,s])     
+            model.addConstr(tcn_spread[t,s] >= tcn_avg[s] - tcn[t,s])
+            model.addConstr(tcn_spread[t,s] >= -tcn_avg[s] + tcn[t,s])     
             model.addGenConstrIndicator(tcn_close_to_avg[t,s], 1, tcn_spread[t,s], GRB.LESS_EQUAL, delta_tcn_to_avg)
-            
-            # is TCNavg close to its nearest integer
-            model.addConstr(tcn_avg_int[t,s] <= tcn_avg[t,s] + 0.5) 
-            model.addConstr(tcn_avg_int[t,s] >= tcn_avg[t,s] - 0.5) 
-            model.addConstr(tcn_avg_int_err[t,s] >= tcn_avg[t,s] - tcn_avg_int[t,s])
-            model.addConstr(tcn_avg_int_err[t,s] >= -tcn_avg[t,s] + tcn_avg_int[t,s])                
-            model.addGenConstrIndicator(tcn_avg_close_to_int[t,s], 1, tcn_avg_int_err[t,s], GRB.LESS_EQUAL, delta_tcnavg_to_int)
-            
+                       
             ## match if both close enough and same int as the rounded average
             model.addGenConstrAnd(tcn_match[t,s], [tcn_close_to_int[t,s], tcn_close_to_avg[t,s]]) 
-            model.addGenConstrAnd(tcn_match_and_avg_at_int[t,s], [tcn_match[t,s], tcn_avg_close_to_int[t,s]]) 
+            model.addGenConstrAnd(tcn_match_and_avg_at_int[t,s], [tcn_match[t,s], tcn_avg_close_to_int[s]]) 
 
             ## constraint for TCN-based CNA
             model.addConstr((tcn_gain[t,s]==1) >> (tcn_int[t,s] >= tcn_wt_copies + 1))
@@ -261,21 +267,13 @@ def CNAlign(dat, gurobi_license, min_ploidy, max_ploidy, min_purity, max_purity,
             model.addGenConstrIndicator(mcn_close_to_int[t,s], 1, mcn_int_err[t,s], GRB.LESS_EQUAL, delta_mcn_to_int)
             
             # is MCN close to the MCNavg (not too spread out)
-            model.addConstr(mcn_avg[t,s] == gb.quicksum(mcn[t,s] for t in Samples)/n_Samples)
-            model.addConstr(mcn_spread[t,s] >= mcn_avg[t,s] - mcn[t,s])
-            model.addConstr(mcn_spread[t,s] >= -mcn_avg[t,s] + mcn[t,s])     
+            model.addConstr(mcn_spread[t,s] >= mcn_avg[s] - mcn[t,s])
+            model.addConstr(mcn_spread[t,s] >= -mcn_avg[s] + mcn[t,s])     
             model.addGenConstrIndicator(mcn_close_to_avg[t,s], 1, mcn_spread[t,s], GRB.LESS_EQUAL, delta_mcn_to_avg)
-            
-            # is MCNavg close to its nearest integer
-            model.addConstr(mcn_avg_int[t,s] <= mcn_avg[t,s] + 0.5) 
-            model.addConstr(mcn_avg_int[t,s] >= mcn_avg[t,s] - 0.5) 
-            model.addConstr(mcn_avg_int_err[t,s] >= mcn_avg[t,s] - mcn_avg_int[t,s])
-            model.addConstr(mcn_avg_int_err[t,s] >= -mcn_avg[t,s] + mcn_avg_int[t,s])                
-            model.addGenConstrIndicator(mcn_avg_close_to_int[t,s], 1, mcn_avg_int_err[t,s], GRB.LESS_EQUAL, delta_mcnavg_to_int)
-            
+                       
             ## match if both close enough and same int as the rounded average
             model.addGenConstrAnd(mcn_match[t,s], [mcn_close_to_int[t,s], mcn_close_to_avg[t,s]]) 
-            model.addGenConstrAnd(mcn_match_and_avg_at_int[t,s], [mcn_match[t,s], mcn_avg_close_to_int[t,s]]) 
+            model.addGenConstrAnd(mcn_match_and_avg_at_int[t,s], [mcn_match[t,s], mcn_avg_close_to_int[s]]) 
 
             ## constraint for TCN-based CNA
             model.addConstr((mcn_gain[t,s]==1) >> (mcn_int[t,s] >= mcn_wt_copies + 1))
@@ -318,27 +316,40 @@ def CNAlign(dat, gurobi_license, min_ploidy, max_ploidy, min_purity, max_purity,
     # create a field for each segment that equals either its avg int-TCN value (if it is part of the solution) or -999 if it is not in the solution
     tcn_avg_int_given_solution = model.addVars(Segments, vtype=GRB.INTEGER, name='tcn_avg_int_given_solution')
 
-    # we need to linearize tcn_avg_int[s] * allmatch[s] using big-M
-    aux = model.addVars(Segments, vtype=GRB.CONTINUOUS, lb=0, ub=max_tcn_avg_int, name="aux")
-    M = max_tcn_avg_int
-    for s in Segments:    
-        # Linearization constraints
-        model.addConstr(aux[s] <= tcn_avg_int[s])
-        model.addConstr(aux[s] <= M * allmatch[s])
-        model.addConstr(aux[s] >= tcn_avg_int[s] - M * (1 - allmatch[s]))
-        model.addConstr(aux[s] >= 0)
+    for s in Segments:
+        # if allmatch[s] == 1, then tcn_avg_int_given_solution[s] == tcn_avg_int[s]
+        model.addGenConstrIndicator(allmatch[s], True, tcn_avg_int_given_solution[s] == tcn_avg_int[s])
 
-    for s in Segments:    
-        model.addConstr(tcn_avg_int_given_solution[s] == (aux[s]) + -999*(1-allmatch[s]))
+        # if allmatch[s] == 0, then force tcn_avg_int_given_solution to be outside of the TCNvals range
+        model.addConstr(tcn_avg_int_given_solution[s] >= 2*max_tcn_avg_int*(1-allmatch[s]))
+
 
     # for each possible TCN integer value, check how often it is in the solution
+    # Auxiliary binary indicators: 1 if tcn_avg_int_given_solution[s] == v
+    is_val = model.addVars(Segments, TCNvals, vtype=GRB.BINARY, name="is_val")
     times_tcn_vals_in_solution = model.addVars(TCNvals, vtype=GRB.INTEGER, name='times_tcn_vals_in_solution', lb=0)
+
+
+    # For each segment and value, enforce: is_val[s, v] == 1 if tcn_avg_int_given_solution[s] == v
+    for s in Segments:
+        for v in TCNvals:
+            # Use indicator constraints or big-M method
+            model.addGenConstrIndicator(is_val[s, v], 1, tcn_avg_int_given_solution[s] == v)
+
     for v in TCNvals:
-        model.addConstr(times_tcn_vals_in_solution[v] == gb.quicksum(tcn_avg_int_given_solution[s] == v for s in Segments))
+        model.addConstr(times_tcn_vals_in_solution[v] == gb.quicksum(is_val[s, v] for s in Segments))
+
 
     # add constraint that at least two different TCN values need to be in the solution
-    unique_tcn_vals_in_solution = model.addVar(vtype=GRB.INTEGER, name='unique_tcn_vals_in_solution', lb=2)
-    model.addConstr(unique_tcn_vals_in_solution == gb.quicksum(times_tcn_vals_in_solution[v] >= 1 for s in Segments))
+    is_present = model.addVars(TCNvals, vtype=GRB.BINARY, name='is_present')
+    for v in TCNvals:
+        # Link is_present[v] to whether times_tcn_vals_in_solution[v] >= 1
+        model.addConstr(times_tcn_vals_in_solution[v] >= is_present[v])
+        model.addConstr(times_tcn_vals_in_solution[v] <= n_Segments * is_present[v])
+
+    # at least two different TCN values must be present
+    #model.addConstr(gb.quicksum(is_present[v] for v in TCNvals) >= 2)
+    model.addConstr(n_unique_tcn_vals_in_solution == gb.quicksum(is_present[v] for v in TCNvals))
 
 
 
@@ -346,6 +357,8 @@ def CNAlign(dat, gurobi_license, min_ploidy, max_ploidy, min_purity, max_purity,
     # define objectives
     # =============================================================================
 
+    # objective 0: number of different TCN values at segments with clonal SCNAs is maximized
+ 
     # objective 1: number of segments with clonal SCNAs (the same CNA in 1+ allele, present in rho+ % of samples)
     model.addConstr(n_clonal == gb.quicksum(allmatch[s] for s in Segments))
     
@@ -372,6 +385,7 @@ def CNAlign(dat, gurobi_license, min_ploidy, max_ploidy, min_purity, max_purity,
         model.addConstr(mcn_error_clonal == gb.quicksum(mcn_int_err_term[t, s] for t in Samples for s in Segments))
 
     # Optimize with stagnation callback  
+    #model.setObjectiveN(n_unique_tcn_vals_in_solution, index=0, priority=3, weight=1, name='N diff TCN vals') 
     model.setObjectiveN(n_clonal, index=0, priority=2, weight=1, name='N clonal segs')
     model.setObjectiveN(-tcn_error_clonal, index=1, priority=1, weight=1-mcn_weight, name='TCN error')
     model.setObjectiveN(-mcn_error_clonal, index=1, priority=1, weight=mcn_weight, name='MCN error')
@@ -381,6 +395,7 @@ def CNAlign(dat, gurobi_license, min_ploidy, max_ploidy, min_purity, max_purity,
     model.optimize(callback)
     
     # Store objective expressions as model attributes for later evaluation
+    model._obj0_expr = n_unique_tcn_vals_in_solution
     model._obj1_expr = n_clonal
     model._obj2_expr = -(1 - mcn_weight) * tcn_error_clonal - mcn_weight * mcn_error_clonal
 
@@ -392,10 +407,12 @@ def CNAlign(dat, gurobi_license, min_ploidy, max_ploidy, min_purity, max_purity,
     solution_count = model.SolCount
     
     # extract objective values for each solution
+    obj0_vals = []
     obj1_vals = []
     obj2_vals = []
     for i in range(model.SolCount):
         model.params.SolutionNumber = i
+        obj0_vals.append(model._obj0_expr.Xn)
         obj1_vals.append(model._obj1_expr.Xn)
         obj2_vals.append(
             -(1 - mcn_weight) * model.getVarByName('tcn_error_clonal').Xn
@@ -403,6 +420,7 @@ def CNAlign(dat, gurobi_license, min_ploidy, max_ploidy, min_purity, max_purity,
         )
 
     df = pd.DataFrame({
+        'Obj0': obj0_vals,
         'Obj1': obj1_vals,
         'Obj2': obj2_vals
         }, index=[f"Solution_{i+1}" for i in range(model.SolCount)])
