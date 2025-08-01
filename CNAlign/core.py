@@ -30,7 +30,7 @@ def CNAlign(dat, gurobi_license, min_ploidy, max_ploidy, min_purity, max_purity,
                min_aligned_seg_mb, max_homdel_mb, 
                delta_tcn_to_int, delta_tcn_to_avg, delta_tcnavg_to_int, 
                delta_mcn_to_int, delta_mcn_to_avg, delta_mcnavg_to_int, 
-               mcn_weight, rho, timeout, min_cna_segments_per_sample, obj2_clonalonly, sol_count, max_tcn_avg_int):
+               mcn_weight, rho, timeout, min_cna_segments_per_sample, obj2_clonalonly, sol_count, max_tcn_avg_int, n_unique_tcn_in_sol):
 
     # Create an environment with your WLS license
     with open(gurobi_license) as file:
@@ -181,7 +181,7 @@ def CNAlign(dat, gurobi_license, min_ploidy, max_ploidy, min_purity, max_purity,
 
     # counter for number of times each TCNval is the value for a segment in the solution
     times_tcn_vals_in_solution = model.addVars(TCNvals, vtype=GRB.INTEGER, name='times_tcn_vals_in_solution', lb=0)
-    n_unique_tcn_vals_in_solution = model.addVar(vtype=GRB.INTEGER, name='n_unique_tcn_vals_in_solution', lb=2)
+    n_unique_tcn_vals_in_solution = model.addVar(vtype=GRB.INTEGER, name='n_unique_tcn_vals_in_solution', lb=n_unique_tcn_in_sol)
 
     ## segment,sample-level contraints
     for s in Segments:
